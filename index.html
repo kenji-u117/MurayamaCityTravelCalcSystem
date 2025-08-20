@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>村山市内路程計算システム</title>
+  <style>
+    canvas { border: 1px solid #ccc; }
+    #info { margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h1>村山市内路程計算システム</h1>
+  <h3>地点をクリックして最短距離を検索</h3>
+  <canvas id="map" width="450" height="600"></canvas>
+  <div id="info">出発地点: <span id="startNode">未選択</span> / 到着地点: <span id="endNode">未選択</span></div>
+  <button onclick="calculatePath()">最短距離を計算</button>
+  <p id="result"></p>
+
+  <script>
+    const canvas = document.getElementById("map");
+    const ctx = canvas.getContext("2d");
+
+    const nodes = {
+		"楯岡": [339, 403],
+		"東沢": [395, 418],
+		"村山浄化センター": [327, 479],
+		"湯沢": [380, 366],
+		"北町": [355, 346],
+		"名取": [321, 310],
+		"浮沼": [288, 345],
+		"清水": [305, 243],
+		"河島": [282, 435],
+		"大淀": [251, 287],
+		"伝承館": [259, 391],
+		"碁点": [237, 437],
+		"行川": [398, 255],
+		"大上林崎": [355, 291],
+		"中沢": [436, 214],
+		"新山": [439, 282],
+		"金谷": [355, 240],
+		"大久保": [204, 511],
+		"湯野沢": [152, 516],
+		"杉平": [116, 578],
+		"岩野": [118, 464],
+		"葉山キャンプ場": [51, 439],
+		"大槇": [233, 365],
+		"稲下": [200, 439],
+		"長善寺": [169, 393],
+		"樽石": [125, 402],
+		"洗馬丁": [91, 346],
+		"ふれあいの里": [57, 303],
+		"白鳥": [184, 321],
+		"宮下": [160, 263],
+		"長島": [203, 204],
+		"本飯田": [355, 144],
+		"土生田": [355, 81],
+		"赤石高玉": [312, 73],
+		"五十沢": [404, 33],
+		"境ノ目": [283, 178],
+		"小滝": [252, 199],
+		"深沢": [182, 135],
+		"　森　": [246, 133],
+		"富並": [200, 84],
+		"下小屋": [126, 73],
+		"枡沢": [110, 121],
+		"大石": [91, 72],
+		"清水平": [74, 150],
+		"上平": [44, 150],
+		"大鳥居": [54, 36],
+		"三枚平": [12, 93]
+    };
+
+    const edges = [
+		["楯岡", "東沢", 4],
+		["楯岡", "村山浄化センター", 5],
+		["楯岡", "湯沢", 3],
+		["楯岡", "北町", 3],
+		["楯岡", "名取", 3],
+		["楯岡", "浮沼", 3],
+		["楯岡", "河島", 2],
+		["湯沢", "行川", 2],
+		["行川", "中沢", 1],
+		["行川", "新山", 1],
+		["北町", "大上林崎", 1],
+		["大上林崎", "行川", 1],
+		["大上林崎", "金谷", 1],
+		["大上林崎", "名取", 2],
+		["金谷", "本飯田", 2],
+		["金谷", "境ノ目", 3],
+		["本飯田", "土生田", 2],
+		["本飯田", "境ノ目", 3],
+		["土生田", "五十沢", 6],
+		["土生田", "赤石高玉", 2],
+		["名取", "清水", 2],
+		["名取", "浮沼", 1],
+		["清水", "境ノ目", 2],
+		["浮沼", "清水", 2],
+		["浮沼", "大淀", 3],
+		["浮沼", "大槇", 3],
+		["浮沼", "河島", 2],
+		["浮沼", "伝承館", 2],
+		["大淀", "長島", 2],
+		["河島", "伝承館", 2],
+		["河島", "碁点", 2],
+		["碁点", "大槇", 1],
+		["碁点", "稲下", 2],
+		["碁点", "大久保", 2],
+		["大久保", "湯野沢", 2],
+		["湯野沢", "杉平", 5],
+		["湯野沢", "岩野", 3],
+		["岩野", "葉山キャンプ場", 8],
+		["岩野", "樽石", 1],
+		["稲下", "長善寺", 1],
+		["稲下", "大久保", 2],
+		["長善寺", "白鳥", 2],
+		["長善寺", "大槇", 2],
+		["長善寺", "樽石", 2],
+		["樽石", "洗馬丁", 4],
+		["洗馬丁", "ふれあいの里", 2],
+		["大槇", "白鳥", 2],
+		["大槇", "長島", 3],
+		["白鳥", "宮下", 1],
+		["白鳥", "長島", 2],
+		["宮下", "長島", 2],
+		["長島", "小滝", 2],
+		["長島", "深沢", 2],
+		["小滝", "境ノ目", 1],
+		["小滝", "　森　", 1],
+		["境ノ目", "　森　", 1],
+		["富並", "深沢", 1],
+		["富並", "　森　", 2],
+		["富並", "下小屋", 3],
+		["下小屋", "枡沢", 2],
+		["下小屋", "大石", 2],
+		["大石", "清水平", 3],
+		["大石", "上平", 5],
+		["大石", "大鳥居", 1],
+		["大鳥居", "三枚平", 3]
+    ];
+
+    const graph = {};
+    for (let [a, b, d] of edges) {
+      if (!graph[a]) graph[a] = {};
+      if (!graph[b]) graph[b] = {};
+      graph[a][b] = d;
+      graph[b][a] = d;
+    }
+
+    let start = null;
+    let end = null;
+    let shortestPath = []; // 最短経路を保存する配列
+
+    function drawMap() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // 通常の道路を描画
+      edges.forEach(([a, b, d]) => {
+        const [x1, y1] = nodes[a];
+        const [x2, y2] = nodes[b];
+        
+        // 最短経路に含まれるかチェック
+        const isInPath = isEdgeInPath(a, b);
+        
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        
+        // 最短経路の場合は黄色、太い線で描画
+        if (isInPath) {
+          ctx.strokeStyle = "yellow";
+          ctx.lineWidth = 4;
+        } else {
+          ctx.strokeStyle = "black";
+          ctx.lineWidth = 1;
+        }
+        ctx.stroke();
+        
+        // 距離の表示
+        const midX = (x1 + x2) / 2 - 6;
+        const midY = (y1 + y2) / 2 - 3;
+        ctx.fillStyle = "black";
+        ctx.fillText(d, midX, midY);
+      });
+
+      // ノードを描画
+      for (let name in nodes) {
+        const [x, y] = nodes[name];
+        ctx.beginPath();
+        ctx.arc(x, y, 10, 0, Math.PI * 2);
+        
+        // 最短経路に含まれるノードは黄色の縁取り
+        if (shortestPath.includes(name)) {
+          ctx.strokeStyle = "orange";
+          ctx.lineWidth = 3;
+        } else {
+          ctx.strokeStyle = "black";
+          ctx.lineWidth = 1;
+        }
+        
+        ctx.fillStyle = (name === start) ? "green" : (name === end) ? "red" : "lightblue";
+        ctx.fill();
+        ctx.stroke();
+        
+        // ノード名を描画
+        ctx.fillStyle = "black";
+        ctx.fillText(name, x - 15, y - 12);
+      }
+    }
+
+    // エッジが最短経路に含まれるかチェックする関数
+    function isEdgeInPath(nodeA, nodeB) {
+      if (shortestPath.length < 2) return false;
+      
+      for (let i = 0; i < shortestPath.length - 1; i++) {
+        const current = shortestPath[i];
+        const next = shortestPath[i + 1];
+        
+        if ((current === nodeA && next === nodeB) || 
+            (current === nodeB && next === nodeA)) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    canvas.addEventListener("click", (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      for (let name in nodes) {
+        const [nx, ny] = nodes[name];
+        const dist = Math.hypot(nx - x, ny - y);
+        if (dist < 10) {
+          if (!start) {
+            start = name;
+            document.getElementById("startNode").textContent = name;
+          } else if (!end) {
+            end = name;
+            document.getElementById("endNode").textContent = name;
+          } else {
+            start = name;
+            end = null;
+            shortestPath = []; // 経路をリセット
+            document.getElementById("startNode").textContent = name;
+            document.getElementById("endNode").textContent = "未選択";
+            document.getElementById("result").textContent = "";
+          }
+          drawMap();
+          break;
+        }
+      }
+    });
+
+    function calculatePath() {
+      if (!start || !end) {
+        document.getElementById("result").textContent = "出発地点と到着地点を選択してください。";
+        return;
+      }
+
+      const distances = {};
+      const previous = {};
+      const visited = {};
+      const queue = [];
+
+      for (let node in graph) {
+        distances[node] = Infinity;
+        previous[node] = null;
+      }
+      distances[start] = 0;
+      queue.push(start);
+
+      while (queue.length > 0) {
+        queue.sort((a, b) => distances[a] - distances[b]);
+        const current = queue.shift();
+        visited[current] = true;
+
+        for (let neighbor in graph[current]) {
+          if (!visited[neighbor]) {
+            const newDist = distances[current] + graph[current][neighbor];
+            if (newDist < distances[neighbor]) {
+              distances[neighbor] = newDist;
+              previous[neighbor] = current;
+              queue.push(neighbor);
+            }
+          }
+        }
+      }
+
+      let path = [];
+      let current = end;
+      while (current) {
+        path.unshift(current);
+        current = previous[current];
+      }
+
+      if (distances[end] < Infinity) {
+        shortestPath = path; // 最短経路を保存
+        document.getElementById("result").innerHTML =
+          `最短距離: ${distances[end]}<br>経路: ${path.join(" → ")}`;
+        drawMap(); // 経路を黄色で再描画
+      } else {
+        shortestPath = [];
+        document.getElementById("result").textContent = "経路が見つかりませんでした。";
+        drawMap();
+      }
+    }
+
+    drawMap();
+  </script>
+</body>
+</html>
