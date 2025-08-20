@@ -12,13 +12,16 @@
   <h1>村山市内路程計算システム</h1>
   <h3>地点をクリックして最短距離を検索</h3>
   <canvas id="map" width="450" height="600"></canvas>
-  <div id="info">出発地点: <span id="startNode">未選択</span> / 到着地点: <span id="endNode">未選択</span></div>
+  <div id="info">出発地点: <span id="startNode">未選択</span> / 中継地点: <span id="viaNodeList">なし</span> / 到着地点: <span id="endNode">未選択</span></div>
   <button onclick="calculatePath()">最短距離を計算</button>
+  <button onclick="clearAll()">すべてクリア</button>
   <p id="result"></p>
 
   <script>
     const canvas = document.getElementById("map");
     const ctx = canvas.getContext("2d");
+    const viaNodes = [];
+    const MAX_VIA = 5;
 
     const nodes = {
 		"楯岡": [339, 403],
@@ -148,7 +151,7 @@
 
     let start = null;
     let end = null;
-    let shortestPath = []; // 最短経路を保存する配列
+    let shortestPath = []; // 連結された全経路を保存する配列
 
     function drawMap() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -197,7 +200,7 @@
           ctx.lineWidth = 1;
         }
         
-        ctx.fillStyle = (name === start) ? "green" : (name === end) ? "red" : "lightblue";
+        ctx.fillStyle = (name === start) ? "green" : (name === end) ? "red" : (viaNodes.includes(name) ? "orange" : "lightblue");
         ctx.fill();
         ctx.stroke();
         
@@ -207,20 +210,43 @@
       }
     }
 
-    // エッジが最短経路に含まれるかチェックする関数
+    // エッジが連結された経路に含まれるかチェックする関数
     function isEdgeInPath(nodeA, nodeB) {
       if (shortestPath.length < 2) return false;
-      
-      for (let i = 0; i < shortestPath.length - 1; i++) {
-        const current = shortestPath[i];
+      return shortestPath.some((node, i) => {
         const next = shortestPath[i + 1];
-        
-        if ((current === nodeA && next === nodeB) || 
-            (current === nodeB && next === nodeA)) {
-          return true;
-        }
+        return next && ((node === nodeA && next === nodeB) || (node === nodeB && next === nodeA));
+      });
+    }
+
+    function updateViaNodeDisplay() {
+      const span = document.getElementById("viaNodeList");
+      if (viaNodes.length === 0) {
+        span.textContent = "なし";
+      } else {
+        span.innerHTML = viaNodes.map(n => `${n} <button onclick="removeViaNode('${n}')">×</button>`).join(" / ");
       }
-      return false;
+    }
+
+    function removeViaNode(name) {
+      const idx = viaNodes.indexOf(name);
+      if (idx !== -1) {
+        viaNodes.splice(idx, 1);
+        updateViaNodeDisplay();
+        drawMap();
+      }
+    }
+
+    function clearAll() {
+      start = null;
+      end = null;
+      viaNodes.length = 0;
+      shortestPath = [];
+      document.getElementById("startNode").textContent = "未選択";
+      document.getElementById("endNode").textContent = "未選択";
+      updateViaNodeDisplay();
+      document.getElementById("result").textContent = "";
+      drawMap();
     }
 
     canvas.addEventListener("click", (e) => {
@@ -238,12 +264,19 @@
           } else if (!end) {
             end = name;
             document.getElementById("endNode").textContent = name;
+          } else if (viaNodes.includes(name)) {
+            removeViaNode(name);
+          } else if (viaNodes.length < MAX_VIA) {
+            viaNodes.push(name);
+            updateViaNodeDisplay();
           } else {
             start = name;
             end = null;
-            shortestPath = []; // 経路をリセット
+            viaNodes.length = 0;
+            shortestPath = [];
             document.getElementById("startNode").textContent = name;
             document.getElementById("endNode").textContent = "未選択";
+            updateViaNodeDisplay();
             document.getElementById("result").textContent = "";
           }
           drawMap();
@@ -252,12 +285,7 @@
       }
     });
 
-    function calculatePath() {
-      if (!start || !end) {
-        document.getElementById("result").textContent = "出発地点と到着地点を選択してください。";
-        return;
-      }
-
+    function shortestPathBetween(startNode, endNode) {
       const distances = {};
       const previous = {};
       const visited = {};
@@ -267,12 +295,13 @@
         distances[node] = Infinity;
         previous[node] = null;
       }
-      distances[start] = 0;
-      queue.push(start);
+      distances[startNode] = 0;
+      queue.push(startNode);
 
       while (queue.length > 0) {
         queue.sort((a, b) => distances[a] - distances[b]);
         const current = queue.shift();
+        if (current === endNode) break;
         visited[current] = true;
 
         for (let neighbor in graph[current]) {
@@ -287,26 +316,50 @@
         }
       }
 
-      let path = [];
-      let current = end;
+      const path = [];
+      let current = endNode;
       while (current) {
         path.unshift(current);
         current = previous[current];
       }
 
-      if (distances[end] < Infinity) {
-        shortestPath = path; // 最短経路を保存
-        document.getElementById("result").innerHTML =
-          `最短距離: ${distances[end]}<br>経路: ${path.join(" → ")}`;
-        drawMap(); // 経路を黄色で再描画
-      } else {
-        shortestPath = [];
-        document.getElementById("result").textContent = "経路が見つかりませんでした。";
-        drawMap();
+      return {
+        distance: distances[endNode],
+        path: distances[endNode] < Infinity ? path : []
+      };
+    }
+
+    function calculatePath() {
+      if (!start || !end) {
+        document.getElementById("result").textContent = "出発地点と到着地点を選択してください。";
+        return;
       }
+
+      const points = [start, ...viaNodes, end];
+      let totalDistance = 0;
+      let combinedPath = [];
+
+      for (let i = 0; i < points.length - 1; i++) {
+        const { distance, path } = shortestPathBetween(points[i], points[i + 1]);
+        if (distance === Infinity || path.length === 0) {
+          document.getElementById("result").textContent = "経路が見つかりませんでした。";
+          shortestPath = [];
+          drawMap();
+          return;
+        }
+        totalDistance += distance;
+        if (i > 0) path.shift();
+        combinedPath = combinedPath.concat(path);
+      }
+
+      shortestPath = combinedPath;
+      document.getElementById("result").innerHTML =
+        `最短距離: ${totalDistance}<br>経路: ${combinedPath.join(" → ")}`;
+      drawMap();
     }
 
     drawMap();
+    updateViaNodeDisplay();
   </script>
 </body>
 </html>
