@@ -1,4 +1,4 @@
-# MurayamaCityTravelCalcSystem
+# TravelCalcSystem
 路程計算として使うツールです。
 
 始点と終点、必要に応じて中継地点通過時の最短経路を導きます。
