@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>グラフエディタ</title>
+  <style>
+    canvas { border: 1px solid #ccc; }
+    textarea { width: 450px; height: 100px; }
+  </style>
+</head>
+<body>
+  <h1>グラフエディタ</h1>
+  <p>キャンバスをクリックして地点を追加し、地点同士をクリックして経路とコストを設定します。</p>
+  <canvas id="editor" width="450" height="600"></canvas>
+  <div>
+    <button onclick="exportJSON()">JSONエクスポート</button>
+    <button onclick="importJSON()">JSONインポート</button>
+    <button onclick="clearAll()">クリア</button>
+  </div>
+  <textarea id="data" placeholder="ここにJSONデータが表示されます"></textarea>
+
+  <script>
+    const canvas = document.getElementById('editor');
+    const ctx = canvas.getContext('2d');
+    let nodes = {};
+    let edges = [];
+    let selectedNode = null;
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.font = '12px sans-serif';
+      edges.forEach(([a, b, c]) => {
+        const [ax, ay] = nodes[a];
+        const [bx, by] = nodes[b];
+        ctx.beginPath();
+        ctx.moveTo(ax, ay);
+        ctx.lineTo(bx, by);
+        ctx.stroke();
+        const mx = (ax + bx) / 2;
+        const my = (ay + by) / 2;
+        ctx.fillText(c, mx, my);
+      });
+      for (let name in nodes) {
+        const [x, y] = nodes[name];
+        ctx.beginPath();
+        ctx.arc(x, y, 8, 0, Math.PI * 2);
+        ctx.fillStyle = name === selectedNode ? 'red' : 'black';
+        ctx.fill();
+        ctx.fillStyle = 'black';
+        ctx.fillText(name, x + 10, y - 10);
+      }
+    }
+
+    canvas.addEventListener('click', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      for (let name in nodes) {
+        const [nx, ny] = nodes[name];
+        if (Math.hypot(nx - x, ny - y) < 10) {
+          if (!selectedNode) {
+            selectedNode = name;
+          } else if (selectedNode !== name) {
+            const cost = prompt('コストを入力', '1');
+            if (cost !== null) {
+              edges.push([selectedNode, name, Number(cost)]);
+            }
+            selectedNode = null;
+          } else {
+            selectedNode = null;
+          }
+          draw();
+          return;
+        }
+      }
+
+      const newName = prompt('地点名を入力');
+      if (newName) {
+        nodes[newName] = [x, y];
+        draw();
+      }
+    });
+
+    function exportJSON() {
+      const data = { nodes, edges };
+      document.getElementById('data').value = JSON.stringify(data, null, 2);
+    }
+
+    function importJSON() {
+      try {
+        const data = JSON.parse(document.getElementById('data').value);
+        nodes = data.nodes || {};
+        edges = data.edges || [];
+        selectedNode = null;
+        draw();
+      } catch (e) {
+        alert('JSONの形式が正しくありません');
+      }
+    }
+
+    function clearAll() {
+      nodes = {};
+      edges = [];
+      selectedNode = null;
+      document.getElementById('data').value = '';
+      draw();
+    }
+
+    draw();
+  </script>
+</body>
+</html>
