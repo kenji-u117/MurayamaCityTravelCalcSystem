@@ -6,6 +6,7 @@
   <style>
     canvas { border: 1px solid #ccc; }
     #info { margin-top: 10px; }
+    textarea { width: 450px; height: 100px; margin-top: 10px; }
   </style>
 </head>
 <body>
@@ -16,6 +17,11 @@
   <button onclick="calculatePath()">最短距離を計算</button>
   <button onclick="clearAll()">すべてクリア</button>
   <p id="result"></p>
+  <div>
+    <button onclick="exportJSON()">JSONエクスポート</button>
+    <button onclick="importJSON()">JSONインポート</button>
+  </div>
+  <textarea id="data" placeholder="ここにJSONを貼り付け"></textarea>
 
   <script>
     const canvas = document.getElementById("map");
@@ -23,7 +29,7 @@
     const viaNodes = [];
     const MAX_VIA = 5;
 
-    const nodes = {
+    let nodes = {
 		"楯岡": [339, 403],
 		"東沢": [395, 418],
 		"村山浄化センター": [327, 479],
@@ -73,7 +79,7 @@
 		"三枚平": [12, 93]
     };
 
-    const edges = [
+    let edges = [
 		["楯岡", "東沢", 4],
 		["楯岡", "村山浄化センター", 5],
 		["楯岡", "湯沢", 3],
@@ -141,13 +147,20 @@
 		["大鳥居", "三枚平", 3]
     ];
 
-    const graph = {};
-    for (let [a, b, d] of edges) {
-      if (!graph[a]) graph[a] = {};
-      if (!graph[b]) graph[b] = {};
-      graph[a][b] = d;
-      graph[b][a] = d;
+    let graph = {};
+    function rebuildGraph() {
+      graph = {};
+      for (let name in nodes) {
+        graph[name] = {};
+      }
+      for (let [a, b, d] of edges) {
+        if (!graph[a]) graph[a] = {};
+        if (!graph[b]) graph[b] = {};
+        graph[a][b] = d;
+        graph[b][a] = d;
+      }
     }
+    rebuildGraph();
 
     let start = null;
     let end = null;
@@ -356,6 +369,23 @@
       document.getElementById("result").innerHTML =
         `最短距離: ${totalDistance}<br>経路: ${combinedPath.join(" → ")}`;
       drawMap();
+    }
+
+    function exportJSON() {
+      const data = { nodes, edges };
+      document.getElementById("data").value = JSON.stringify(data, null, 2);
+    }
+
+    function importJSON() {
+      try {
+        const data = JSON.parse(document.getElementById("data").value);
+        nodes = data.nodes || {};
+        edges = data.edges || [];
+        rebuildGraph();
+        clearAll();
+      } catch (e) {
+        alert("JSONの読み込みに失敗しました");
+      }
     }
 
     drawMap();
